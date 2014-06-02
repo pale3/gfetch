@@ -1,0 +1,180 @@
+#! /bin/bash
+# small and easy gmail fetcher script
+
+set -e
+
+version=0.2-git
+maintainer="@ 2013 Marko Rakamaric"
+
+usage(){
+cat << EOF  
+Usage: gfetch <action>
+	 
+${G}Daemon actions:${N}	
+  ${W}-D --daemon${N}      start daemon
+  ${W}-k --kill${N}        kill gfetch
+
+${G}Standard actions:${N}	
+  ${W}(c)heck${N}          check mail
+  ${W}(l)ist${N}           list mails
+EOF
+}
+
+version(){
+cat << EOF
+     This is  : gfetch
+     Version  : $version
+ Description  : Mail retriver and checker for Gmail
+   Copyright  : $maintainer
+     License  : GNU General Public License, version 3 or later
+EOF
+}
+
+msg(){ printf "%s\n" "$@"; } # color noraml
+die(){ exit "$?"; } # exit 
+
+# define some colors
+W="$(tput bold)$(tput setaf 7)"
+R="$(tput bold)$(tput setaf 1)"
+G="$(tput bold)$(tput setaf 2)"
+Y="$(tput bold)$(tput setaf 3)"
+N="$(tput sgr0)"
+
+is_running(){ [[ -f $1 ]] && return 0 || return 1 ; }
+
+rm_obsolte(){	for i in $tmpdir/*; do 	rm $i; done; }
+
+kill_daemon(){ rm_obsolte; pkill gfetch; }
+
+d_err(){ [[ $1 = 1 ]] && msg " ${R}*${N} $0 already started" && die || msg " ${R}*${N} $0 isn't started" && die; }
+
+d_err(){ [[ $1 = 1 ]] && msg "${R}!!! Error:${N} $0 daemon already running" && die || msg "${R}!!! Error:${N} $0 isn't started" && die; }
+
+get_pid(){ ! [[ -f $pid ]] && echo $$ > $pid || return 0; }
+
+readcfg(){
+	
+		if [[ -f $cfg ]]; then
+			source $cfg 
+		else
+			msg "${R}*${N} No config file, please copy default to ${W}$HOME${N}" && die 
+		fi
+}
+
+network_carrier_status(){
+	# we don't wana start gmailfetcher system is not online
+	hwactive=$( route -n | awk '{print $8}' | sed '/^$/d' | grep -v "\Iface\|lo" | uniq )
+	! [[ $hwactive ]] && return
+	[[ $( cat /sys/class/net/$hwactive/carrier ) = 1 ]] && online="true"
+
+}
+
+checkmail(){
+	readcfg
+
+  [[ -f $mail ]] && mv "$mail" "$_mail"
+	
+	wget -q --secure-protocol=TLSv1 --no-check-certificate --user=$user --password=$pass https://mail.google.com/mail/feed/atom -O - | grep -ioEm1 "<title[^>]*>[^<]*</title>" | sed "s/<title>//" | sed "s/<\/title>//" | sed 1d > $mail
+
+  [[ ! $force  ]] && if [[ -f $_mail ]]; then diff "$mail" "$_mail" && return; fi
+	mailcount=$( wc -l $mail | awk '{print $1}' )	
+	omailcount=$( wc -l $_mail | awk '{print $1}' ) 
+ 
+  if [[ $mailcount -ge 0 ]]; then
+
+		# if we have 0 mails, redirect mailcount to $mcout
+      echo -e $mailcount > "$mcount"
+
+    if [[ $mailcount -gt 0 ]]; then
+			
+      echo -e $mailcount > "$mcount"
+
+			# passing cmdline c to force check
+			[[ $force ]] && msg " ${G}*${N} You have ${W}$( cat $mcount )${N} new mails" && die
+
+			# don't show notify or sound if we already readed some mails
+			[[ $iter -gt 1 ]] &&	[[ $mailcount -lt $omailcount ]] && osd="false" && sound="false" 
+
+	    if [[ $osd = "true" ]] && [[ ! $force ]]; then
+				
+		    	lastmail=$( sed -n 1p $mail )
+		  	  notify-send -t "$osd_timeout" "$osdtext [$mailcount]" "$lastmail"
+
+	    fi	  
+    
+			if [[ $sound = "true" && -f "$wav" ]] && [[ ! $force ]];then 
+				 aplay "$wav" &> /dev/null
+			fi
+
+		fi
+  
+	else
+		# we need some kind of info when we have some Err while fetching
+    echo -e "Err" > "$mcount"
+  fi
+}
+
+list_mail(){
+	readcfg
+	lnb=0
+	mailcount=$( wc -l $mail | awk '{print $1}' )	
+
+	if	[[ $mailcount -lt 1 ]] ; then 
+		msg " ${Y}*${N} No new mails!" && die
+	else
+		newmail="true"
+		msg " ${G}*${N} New mails for ${Y}"$mailbox"${N}" 
+	fi
+
+	while read line; do
+
+		let lnb++
+		msg " ${W}[$lnb]${N} $line"
+
+	done < $mail
+	
+  [[ $newmail ]] && msg " ${Y}*${N} Total new mails: ${W}$lnb${N}" 
+	
+}
+
+cfg="$HOME/.gfetchrc"
+tmpdir="/tmp/gfetch"
+mcount="$tmpdir/mcount"
+mail="$tmpdir/newmails.txt"
+_mail="$tmpdir/oldmails.txt"
+pid="$tmpdir/gfetch.pid"
+
+ARGS=("$@")
+for i in ${ARGS[@]}; do
+	[[ "$i" =~ ^[a-z] ]] && OPTS+=("$i")
+	[[ "$i" =~ ^--[a-z] ]] && OPTS+=("$i")
+	[[ "$i" =~ ^-[a-zA-Z] ]] && OPTS+=("$i")
+done
+
+! [[ -e $tmpdir  ]] && mkdir -p "$tmpdir"
+
+[[ $# -lt 1 ]] && usage && die
+
+case $OPTS in
+  -D | --daemon  ) is_running $pid && d_err 1;
+								   nohup $0 --config "$cfg" &> /dev/null & exit 1 ;;
+	-k | --kill    ) ! is_running $pid && d_err 2 ;
+								   kill_daemon ;;
+	     --config  ) readcfg ;;
+   c | check     ) ! is_running $pid && d_err 2;
+									 force="true"; checkmail && die;;
+	 l | list      ) ! is_running $pid && d_err 2;
+									 list_mail && die ;;
+	-v | --version ) version && die ;;
+							 * ) msg " ${R}*${N} Unerocgnized command!!" && die ;;
+esac
+
+iter=0
+while true; do
+	
+	 get_pid	
+	 network_carrier_status
+	 [[ $online ]] && checkmail && sleep ${interval:=300} || iter=0 && sleep 10 
+
+iter=$((iter+1))
+done 

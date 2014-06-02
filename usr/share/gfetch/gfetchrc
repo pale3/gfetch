@@ -1,0 +1,29 @@
+# this is configuration file of gfetch, copy it to your desired location. 
+# By default script will check for .getchrc in $HOME dir.
+
+# specify your mail address
+mailbox=""
+
+# dedine user and pass in fields bellow
+user=""
+pass=""
+
+# check mail interval in secconds
+interval="120"
+
+# play sound on new mail
+sound="true"
+
+# location of played file upon notification, only ".waw" is supported. This setting depend on "sound" value 
+wav="/usr/share/gfetch/ding.wav"
+
+# On screen notification using libnotify
+osd="true"
+
+# OSD notification; prefix text on all new mails. Depends on "osd" value.
+osdtext="UnredMail:"
+
+# timeout for displaying notification
+osd_timeout="5000"
+
+# vim: set ft=sh:
