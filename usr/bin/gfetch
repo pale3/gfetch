@@ -3,7 +3,7 @@
 
 set -e
 
-version=0.2-git
+version=0.3-git
 maintainer="@ 2013 Marko Rakamaric"
 
 usage(){
@@ -69,16 +69,30 @@ network_carrier_status(){
 
 }
 
+strip_tags_in_list(){
+		
+		subject=$(echo $subject| sed "s/<title>//" | sed "s|</title>||") 
+		sender=$(echo $sender|  sed "s/<name>//" | sed "s|</name>||" ) 
+}
+
 checkmail(){
 	readcfg
 
   [[ -f $mail ]] && mv "$mail" "$_mail"
 	
-	wget -q --secure-protocol=TLSv1 --no-check-certificate --user=$user --password=$pass https://mail.google.com/mail/feed/atom -O - | grep -ioEm1 "<title[^>]*>[^<]*</title>" | sed "s/<title>//" | sed "s/<\/title>//" | sed 1d > $mail
+	#wget -q --secure-protocol=TLSv1 --no-check-certificate --user=$user --password=$pass \
+	#	https://mail.google.com/mail/feed/atom -O - | \
+	#	grep -ioE "<title[^>]*>[^<]*</title>" | sed "s/<title>//" | sed "s/<\/title>//" | \
+	#	sed 1d > $mail
+
+	wget -q --secure-protocol=TLSv1 --no-check-certificate --user=$user --password=$pass https://mail.google.com/mail/feed/atom -O - | \
+	grep -ioE "<name[^>]*>[^<]*</name>|<title[^>]*>[^<]*</title>" | sed 1d > $mail
+
+	#grep -o "<title[^>]*>[^<]*</title>" $mailtags > $mail
 
   [[ ! $force  ]] && if [[ -f $_mail ]]; then diff "$mail" "$_mail" && return; fi
-	mailcount=$( wc -l $mail | awk '{print $1}' )	
-	omailcount=$( wc -l $_mail | awk '{print $1}' ) 
+	mailcount=$( expr $(wc -l $mail | awk '{print $1}') / 2  )	
+	omailcount=$( expr $(wc -l $_mail | awk '{print $1}') / 2 ) 
  
   if [[ $mailcount -ge 0 ]]; then
 
@@ -97,8 +111,10 @@ checkmail(){
 
 	    if [[ $osd = "true" ]] && [[ ! $force ]]; then
 				
-		    	lastmail=$( sed -n 1p $mail )
-		  	  notify-send -t "$osd_timeout" "$osdtext [$mailcount]" "$lastmail"
+					while read -r subject; read -r sender; do
+						strip_tags_in_list
+						notify-send -t "$osd_timeout" "$osdtext [$mailcount]" "$sender $subject"	
+					done < <(sed -n 1,2p $mail )
 
 	    fi	  
     
@@ -114,10 +130,28 @@ checkmail(){
   fi
 }
 
+
+
+output_align(){
+	local action="${#1}" space=10 lcolumn=20
+	indent=$( expr $lcolumn - $action + $space )
+}
+
+
+write_list_output(){ 
+	local sender=${1} title=${2}
+	
+	[[ $lnb -lt 10 ]] && \
+		printf "%s%-${indent}s%s\n" "  $W[$(( lnb++ ))]  ${G}${sender}${N}" "" "${title}" || \
+		printf "%s%-${indent}s%s\n" " $W[$(( lnb++ ))]  ${G}${sender}${N}" "" "${title}"
+	return 0
+}
+
+
 list_mail(){
 	readcfg
-	lnb=0
-	mailcount=$( wc -l $mail | awk '{print $1}' )	
+	lnb=1
+	mailcount=$( expr $(wc -l $mail | awk '{print $1}') / 2 )	
 
 	if	[[ $mailcount -lt 1 ]] ; then 
 		msg " ${Y}*${N} No new mails!" && die
@@ -126,14 +160,17 @@ list_mail(){
 		msg " ${G}*${N} New mails for ${Y}"$mailbox"${N}" 
 	fi
 
-	while read line; do
-		let lnb++
-		[[ $lnb -lt 10 ]] && \
-			msg "  ${W}[$lnb]${N} $line" || \
-			msg " ${W}[$lnb]${N} $line"
+	while read -r subject; read -r sender; do
+
+		strip_tags_in_list
+
+		! [[ -z $sender ]] && \
+			output_align "$sender" && \
+			write_list_output "$sender" "$subject" && \
+			unset sender subject
 
 	done < $mail
-	
+
   [[ $newmail ]] && msg " ${Y}*${N} Total new mails: ${W}$lnb${N}" 
 	
 }
