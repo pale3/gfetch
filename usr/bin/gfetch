@@ -113,7 +113,7 @@ checkmail(){
 				
 					while read -r subject; read -r sender; do
 						strip_tags_in_list
-						notify-send -t "$osd_timeout" "$osdtext [$mailcount]" "$sender $subject"	
+						notify-send -t "$osd_timeout" "$osdtext [$mailcount]" "\nFrom: <b>$sender</b>\nSubject: $subject"	
 					done < <(sed -n 1,2p $mail )
 
 	    fi	  
