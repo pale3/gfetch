@@ -127,9 +127,10 @@ list_mail(){
 	fi
 
 	while read line; do
-
 		let lnb++
-		msg " ${W}[$lnb]${N} $line"
+		[[ $lnb -lt 10 ]] && \
+			msg "  ${W}[$lnb]${N} $line" || \
+			msg " ${W}[$lnb]${N} $line"
 
 	done < $mail
 	
