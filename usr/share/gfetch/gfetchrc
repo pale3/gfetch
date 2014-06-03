@@ -26,4 +26,10 @@ osdtext="UnredMail:"
 # timeout for displaying notification
 osd_timeout="5000"
 
+# if subject is more than 90 characters wide, then shrink it
+max_subject_size="90"
+
+# set to true to show sender email
+osd_show_sender_email=0
+
 # vim: set ft=sh:
