@@ -30,7 +30,7 @@ cat << EOF
 EOF
 }
 
-#osd_show_sender_email=0
+FORCE=0
 
 msg(){ printf "%s\n" "$@"; } # color noraml
 die(){ exit "$?"; } # exit 
@@ -42,17 +42,17 @@ G="$(tput bold)$(tput setaf 2)"
 Y="$(tput bold)$(tput setaf 3)"
 N="$(tput sgr0)"
 
-_replace_unwanted_characters_(){
+replace_unwanted_characters(){
 		# format html: &lt,&gt;$amp;&quot
 		local sub="${1}"
 		subject=$(echo "$subject" | sed -e "s|&quot;|\"|g" -e "s|&lt;|<|g" -e "s|&gt;|>|g" -e "s|&amp;|&|g")	
 }
 
-_shrink_subject_(){
+shrink_subject(){
 		local sub="${1}"
 
-		[[ ${#sub} -gt $max_subject_size ]] && \
-			subject=$(echo "$sub" | sed "s|.\{$max_subject_size\}|&\n|g")
+		[[ ${#sub} -gt $MAX_SUBJECT_SIZE ]] && \
+			subject=$(echo "$sub" | sed "s|.\{$MAX_SUBJECT_SIZE\}|&\n|g")
 		return
 }
 
@@ -95,12 +95,12 @@ checkmail(){
 
   [[ -f $mail ]] && mv "$mail" "$_mail"
 	
-	wget -q --secure-protocol=TLSv1 --no-check-certificate --user=$user --password=$pass https://mail.google.com/mail/feed/atom -O - | \
+	wget -q --secure-protocol=TLSv1 --no-check-certificate --user=$USERNAME --password=$PASSWORD https://mail.google.com/mail/feed/atom -O - | \
 	grep -ioE "<name[^>]*>[^<]*</name>|<title[^>]*>[^<]*</title>|<email[^>]*>[^<]*</email>" | sed 1d > $mail
 	
-  [[ ! $force  ]] && if [[ -f $_mail ]]; then diff "$mail" "$_mail" && return; fi
+	! (( $FORCE )) && if [[ -f $_mail ]]; then diff "$mail" "$_mail" && return; fi
 	mailcount=$( expr $(wc -l $mail | awk '{print $1}') / 3  )	
-	omailcount=$( expr $(wc -l $_mail | awk '{print $1}') / 3 ) 
+	[[ -f $_mail ]]	&& omailcount=$( expr $(wc -l $_mail | awk '{print $1}') / 3 ) 
  
   if [[ $mailcount -ge 0 ]]; then
 
@@ -112,30 +112,31 @@ checkmail(){
       echo -e $mailcount > "$mcount"
 
 			# passing cmdline c to force check
-			[[ $force ]] && msg " ${G}*${N} You have ${W}$( cat $mcount )${N} new mails" && die
+			(( $FORCE )) && msg " ${G}*${N} You have ${W}$( cat $mcount )${N} new mails" && die
 
 			# don't show notify or sound if we already readed some mails
-			[[ $iter -gt 1 ]] &&	[[ $mailcount -lt $omailcount ]] && osd="false" && sound="false" 
+			[[ $iter -gt 1 ]] &&	[[ $mailcount -lt $omailcount ]] && OSD="False" && SOUND="False" 
 
-	    if [[ $osd = "true" ]] && [[ ! $force ]]; then
+			if [[ $OSD = "True" ]] && ! (( $FORCE )); then
 						
 				
 				while read -r subject; read -r sender; read -r email; do
 						
 						_strip_html_tags_
-						_replace_unwanted_characters_ "$subject"
-						_shrink_subject_
+						replace_unwanted_characters "$subject"
+						shrink_subject "$subject"
 						
-						(( $osd_show_sender_email )) && email=("<${email}>") || email=""
+						[[ ${OSD_SHOW_SENDER_EMAIL} == "True" ]] && \
+							email=("<${email}>") || email=""
 
-						notify-send -t "$osd_timeout" "$osdtext [$mailcount]" \
+						notify-send -t "$OSD_TIMEOUT" "$OSDTEXT [$mailcount]" \
 							"\nFrom: <b>$sender</b> $email\nSubject: $subject"	
 					done < <(sed -n 1,3p $mail )
 
 	    fi	  
     
-			if [[ $sound = "true" && -f "$wav" ]] && [[ ! $force ]];then 
-				 aplay "$wav" &> /dev/null
+			if [[ $SOUND = "true" && -f "$WAV_FILE" ]] && ! (( $FORCE ));then 
+				 aplay "$WAV_FILE" &> /dev/null
 			fi
 
 		fi
@@ -174,7 +175,7 @@ list_mail(){
 		msg " ${Y}*${N} No new mails!" && die
 	else
 		newmail="true"
-		msg " ${G}*${N} New mails for ${Y}"$mailbox"${N}" 
+		msg " ${G}*${N} New mails for ${Y}"$MAILBOX"${N}" 
 	fi
 
 	while read -r subject; read -r sender; read -r email; do
@@ -185,7 +186,7 @@ list_mail(){
 		! [[ -z $sender ]] && \
 			output_align "$sender" && \
 			write_list_output "$sender" "$subject" && \
-			unset sender subject
+			unset sender subject email
 
 	done < $mail
 
@@ -218,7 +219,7 @@ case $OPTS in
 								   kill_daemon ;;
 	     --config  ) readcfg ;;
    c | check     ) ! is_running $pid && d_err 2;
-									 force="true"; checkmail && die;;
+									 FORCE=1; checkmail && die;;
 	 l | list      ) ! is_running $pid && d_err 2;
 									 list_mail && die ;;
 	-v | --version ) version && die ;;
@@ -230,7 +231,7 @@ while true; do
 	
 	 get_pid	
 	 network_carrier_status
-	 [[ $online ]] && checkmail && sleep ${interval:=300} || iter=0 && sleep 10 
+	 [[ $online ]] && checkmail && sleep ${INTERVAL:=300} || iter=0 && sleep 10 
 
 iter=$((iter+1))
 done 

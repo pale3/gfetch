@@ -2,34 +2,34 @@
 # By default script will check for .getchrc in $HOME dir.
 
 # specify your mail address
-mailbox=""
+MAILBOX=""
 
 # dedine user and pass in fields bellow
-user=""
-pass=""
+USERNAME=""
+PASSWORD=""
 
 # check mail interval in secconds
-interval="120"
+INTERVAL="120"
 
 # play sound on new mail
-sound="true"
+SOUND="True"
 
 # location of played file upon notification, only ".waw" is supported. This setting depend on "sound" value 
-wav="/usr/share/gfetch/ding.wav"
+WAV_FILE="/usr/share/gfetch/ding.wav"
 
 # On screen notification using libnotify
-osd="true"
+OSD="True"
 
 # OSD notification; prefix text on all new mails. Depends on "osd" value.
-osdtext="UnredMail:"
+OSDTEXT="UnredMail:"
 
 # timeout for displaying notification
-osd_timeout="5000"
+OSD_TIMEOUT="5000"
 
 # if subject is more than 90 characters wide, then shrink it
-max_subject_size="90"
+MAX_SUBJECT_SIZE="90"
 
 # set to true to show sender email
-osd_show_sender_email=0
+OSD_SHOW_SENDER_EMAIL=True
 
 # vim: set ft=sh:
