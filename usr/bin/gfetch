@@ -30,19 +30,16 @@ cat << EOF
 EOF
 }
 
-FORCE=0
-
 info(){
 	local i="$1"
 	case $i in
-		-n ) printf "%s\n" " ::: $2" ;;
 		-i ) printf "%s\n" " ${G}*${N} $2" 	;; 
 		-y ) printf "%s\n" " ${Y}*${N} $2" 	;; 
 		-a ) printf "%s\n" " >>> $2" ;; 
 	esac
 }
 
-die(){ printf "%s\n" " ${R}!!! Error:${N}  $1"; exit "$?"; } # exit 
+die(){ printf "%s\n" " ${R}!!! Error:${N} $1"; exit "$?"; } # exit 
 
 # define some colors
 W="$(tput bold)$(tput setaf 7)"
@@ -68,18 +65,23 @@ shrink_subject(){
 			sub="${sub}"
 			trim_sub="${sub:0:(-$OSD_MAX_SUBJECT_WIDTH)}"
 			spaces=$(tr -cd ' ' <<< ${trim_sub} | wc -c)
-			#subject=$(echo "$sub" | sed "s|.\{$OSD_MAX_SUBJECT_WIDTH\}|&\n|g")
 			subject=$(echo "$sub" | sed "s| |\n|$spaces")
-
 		fi
 		return
 }
+_replace_(){ echo "$1" | sed "s|$stag||" | sed "s|$etag||";}
 
 _strip_html_tags_(){
-
-		subject=$(echo $subject | sed "s/<title>//" | sed "s|</title>||") 
-		sender=$(echo $sender | sed "s/<name>//" | sed "s|</name>||" ) 
-		email=$(echo $email | sed "s/<email>//" | sed "s|</email>||" ) 
+		local action="${1}" tag="${2}" stag etag
+		
+		for i in ${action[@]}; do 
+		case $i in 
+			sender ) stag="<name>"; etag="</name>"; sender=$(_replace_ "$sender") ;;
+			subject ) stag="<title>"; etag="</title>"; subject=$(_replace_ "$subject") ;;
+			email )  stag="<email>"; etag="</email>"; email=$(_replace_ "$email") ;;
+		esac
+		done
+		return
 }
 
 is_running(){ [[ -f $1 ]] && return 0 || return 1 ; }
@@ -145,12 +147,13 @@ checkmail(){
 						
 				while read -r subject; read -r sender; read -r email; do
 						
-						_strip_html_tags_
+						_strip_html_tags_ "sender subject"
 						replace_unwanted_characters "$subject"
 						replace_unwanted_characters "$sender"
 						shrink_subject "$subject"
 						
 						[[ ${OSD_SHOW_SENDER_EMAIL} == "True" ]] && \
+						_strip_html_tags_ "email" && \
 							email=("<${email}>") || email=""
 
 						notify-send -t "$OSD_TIMEOUT" "$OSDTEXT [$mailcount]" \
@@ -172,13 +175,14 @@ checkmail(){
 }
 
 output_align(){
-	# lcolumn(left colum max width), 
+	# INFO: lcolumn(left colum max width), 
 	# space(blank space between left and right column)
 	local action="${#1}" space=10 lcolumn=20
 	indent=$( expr $lcolumn - $action + $space )
 }
 
-write_list_output(){ 
+write_list_output(){
+	# INFO: print to stdout based on line number
 	local sender=${1} title=${2}
 	
 	[[ $lnb -lt 10 ]] && \
@@ -204,7 +208,7 @@ list_mail(){
 
 	while read -r subject; read -r sender; read -r email; do
 
-		_strip_html_tags_
+		_strip_html_tags_ "sender subject"
 		subject=$(replace_unwanted_characters "$subject")
 		sender=$(replace_unwanted_characters "$sender")
 
@@ -217,6 +221,18 @@ list_mail(){
 
 	(( $newmail )) &&  info -y "Total new mails: ${W}$(expr $lnb - 1 )${N}" 
 	
+}
+
+_daemon(){
+	iter=0
+	while true; do
+		# NOTE: pid is wrong, use pgrep -x gfetch instead
+		get_pid	
+		network_carrier_status
+		(( $online )) && checkmail && sleep ${INTERVAL:=300} || iter=0 && sleep 10 
+
+	iter=$((iter+1))
+	done 
 }
 
 cfg="$HOME/.gfetchrc"
@@ -234,6 +250,7 @@ for i in ${ARGS[@]}; do
 	[[ "$i" =~ ^-[a-zA-Z] ]] && OPTS+=("$i")
 done
 
+# crate dir if it doens't exist
 ! [[ -e $tmpdir  ]] && mkdir -p "$tmpdir"
 
 # if there is no argument given show us usage
@@ -242,10 +259,10 @@ done
 case $OPTS in
   -D | --daemon  ) is_running $pid && d_err 1;
 								   #nohup $0 --config "$cfg" &> /dev/null & exit 0 ;;
-								   $0 --config "$cfg" ;;
+								 	 readcfg;
+								   _daemon  &> /dev/null & ;;
 	-k | --kill    ) ! is_running $pid && d_err 2 ;
 								   kill_daemon ;;
-	     --config  ) readcfg ;;
    c | check     ) ! is_running $pid && d_err 2;
 									 FORCE=1; checkmail && die;;
 	 l | list      ) ! is_running $pid && d_err 2;
@@ -254,12 +271,3 @@ case $OPTS in
 							 * ) die " Unerocgnized command!!" ;;
 esac
 
-iter=0
-while true; do
-	
-	 get_pid	
-	 network_carrier_status
-	 (( $online )) && checkmail && sleep ${INTERVAL:=300} || iter=0 && sleep 10 
-
-iter=$((iter+1))
-done 
