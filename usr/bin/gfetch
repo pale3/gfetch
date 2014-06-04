@@ -42,7 +42,7 @@ info(){
 	esac
 }
 
-die(){ printf "%s\n" " ${R}!!! Error:${N}  $2"; exit "$?"; } # exit 
+die(){ printf "%s\n" " ${R}!!! Error:${N}  $1"; exit "$?"; } # exit 
 
 # define some colors
 W="$(tput bold)$(tput setaf 7)"
@@ -62,10 +62,16 @@ replace_unwanted_characters(){
 }
 
 shrink_subject(){
-		local sub="${1}"
+		local sub="${1}" trim_sub spaces
 
-		[[ ${#sub} -gt $OSD_MAX_SUBJECT_WIDTH ]] && \
-			subject=$(echo "$sub" | sed "s|.\{$OSD_MAX_SUBJECT_WIDTH\}|&\n|g")
+		if [[ ${#sub} -gt $OSD_MAX_SUBJECT_WIDTH ]]; then
+			sub="${sub}"
+			trim_sub="${sub:0:(-$OSD_MAX_SUBJECT_WIDTH)}"
+			spaces=$(tr -cd ' ' <<< ${trim_sub} | wc -c)
+			#subject=$(echo "$sub" | sed "s|.\{$OSD_MAX_SUBJECT_WIDTH\}|&\n|g")
+			subject=$(echo "$sub" | sed "s| |\n|$spaces")
+
+		fi
 		return
 }
 
@@ -235,8 +241,8 @@ done
 
 case $OPTS in
   -D | --daemon  ) is_running $pid && d_err 1;
-								   nohup $0 --config "$cfg" &> /dev/null & exit 0 ;;
-								   #$0 --config "$cfg" ;;
+								   #nohup $0 --config "$cfg" &> /dev/null & exit 0 ;;
+								   $0 --config "$cfg" ;;
 	-k | --kill    ) ! is_running $pid && d_err 2 ;
 								   kill_daemon ;;
 	     --config  ) readcfg ;;
