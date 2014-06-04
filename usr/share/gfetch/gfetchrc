@@ -27,7 +27,7 @@ OSDTEXT="UnredMail:"
 OSD_TIMEOUT="5000"
 
 # if subject is more than 90 characters wide, then shrink it
-MAX_SUBJECT_SIZE="90"
+OSD_MAX_SUBJECT_WIDTH="90"
 
 # set to true to show sender email
 OSD_SHOW_SENDER_EMAIL=True

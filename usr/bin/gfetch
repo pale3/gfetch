@@ -32,8 +32,17 @@ EOF
 
 FORCE=0
 
-msg(){ printf "%s\n" "$@"; } # color noraml
-die(){ exit "$?"; } # exit 
+info(){
+	local i="$1"
+	case $i in
+		-n ) printf "%s\n" " ::: $2" ;;
+		-i ) printf "%s\n" " ${G}*${N} $2" 	;; 
+		-y ) printf "%s\n" " ${Y}*${N} $2" 	;; 
+		-a ) printf "%s\n" " >>> $2" ;; 
+	esac
+}
+
+die(){ printf "%s\n" " ${R}!!! Error:${N}  $2"; exit "$?"; } # exit 
 
 # define some colors
 W="$(tput bold)$(tput setaf 7)"
@@ -42,24 +51,28 @@ G="$(tput bold)$(tput setaf 2)"
 Y="$(tput bold)$(tput setaf 3)"
 N="$(tput sgr0)"
 
+# format html: &lt,&gt;$amp;&quot
 replace_unwanted_characters(){
-		# format html: &lt,&gt;$amp;&quot
-		local sub="${1}"
-		subject=$(echo "$subject" | sed -e "s|&quot;|\"|g" -e "s|&lt;|<|g" -e "s|&gt;|>|g" -e "s|&amp;|&|g")	
+	echo "$1" | sed \
+		-e "s|&quot;|\"|g" \
+		-e "s|&lt;|<|g" \
+		-e "s|&gt;|>|g" \
+		-e "s|&amp;|\&|g"
+		return 
 }
 
 shrink_subject(){
 		local sub="${1}"
 
-		[[ ${#sub} -gt $MAX_SUBJECT_SIZE ]] && \
-			subject=$(echo "$sub" | sed "s|.\{$MAX_SUBJECT_SIZE\}|&\n|g")
+		[[ ${#sub} -gt $OSD_MAX_SUBJECT_WIDTH ]] && \
+			subject=$(echo "$sub" | sed "s|.\{$OSD_MAX_SUBJECT_WIDTH\}|&\n|g")
 		return
 }
 
 _strip_html_tags_(){
-		
-		subject=$(echo $subject| sed "s/<title>//" | sed "s|</title>||") 
-		sender=$(echo $sender| sed "s/<name>//" | sed "s|</name>||" ) 
+
+		subject=$(echo $subject | sed "s/<title>//" | sed "s|</title>||") 
+		sender=$(echo $sender | sed "s/<name>//" | sed "s|</name>||" ) 
 		email=$(echo $email | sed "s/<email>//" | sed "s|</email>||" ) 
 }
 
@@ -69,7 +82,7 @@ rm_obsolte(){	for i in $tmpdir/*; do 	rm $i; done; }
 
 kill_daemon(){ rm_obsolte; pkill gfetch; }
 
-d_err(){ [[ $1 = 1 ]] && msg "${R}!!! Error:${N} $0 daemon already running" && die || msg "${R}!!! Error:${N} $0 isn't started" && die; }
+d_err(){ [[ $1 = 1 ]] && die "$0 daemon already running" || die "$0 isn't started" ; }
 
 get_pid(){ ! [[ -f $pid ]] && echo $$ > $pid || return 0; }
 
@@ -78,7 +91,7 @@ readcfg(){
 		if [[ -f $cfg ]]; then
 			source $cfg 
 		else
-			msg "${R}*${N} No config file, please copy default to ${W}$HOME${N}" && die 
+			die "No config file, please copy default to ${W}$HOME${N}"
 		fi
 }
 
@@ -86,7 +99,7 @@ network_carrier_status(){
 	# we don't wana start gmailfetcher system is not online
 	hwactive=$( route -n | awk '{print $8}' | sed '/^$/d' | grep -v "\Iface\|lo" | uniq )
 	! [[ $hwactive ]] && return
-	[[ $( cat /sys/class/net/$hwactive/carrier ) = 1 ]] && online="true"
+	[[ $( cat /sys/class/net/$hwactive/carrier ) = 1 ]] && online=1
 
 }
 
@@ -95,12 +108,17 @@ checkmail(){
 
   [[ -f $mail ]] && mv "$mail" "$_mail"
 	
-	wget -q --secure-protocol=TLSv1 --no-check-certificate --user=$USERNAME --password=$PASSWORD https://mail.google.com/mail/feed/atom -O - | \
+	wget -q --secure-protocol=TLSv1 --no-check-certificate \
+		--user=$USERNAME --password=$PASSWORD \
+		https://mail.google.com/mail/feed/atom -O - | \
 	grep -ioE "<name[^>]*>[^<]*</name>|<title[^>]*>[^<]*</title>|<email[^>]*>[^<]*</email>" | sed 1d > $mail
 	
+	# create copy of mail bit with titles only, I use this because of easier calucaltion of mails
+	grep -ioE "<title[^>]*>[^<]*</title>" $mail > $mailcount_tmp
+
 	! (( $FORCE )) && if [[ -f $_mail ]]; then diff "$mail" "$_mail" && return; fi
-	mailcount=$( expr $(wc -l $mail | awk '{print $1}') / 3  )	
-	[[ -f $_mail ]]	&& omailcount=$( expr $(wc -l $_mail | awk '{print $1}') / 3 ) 
+	mailcount=$( wc -l $mailcount_tmp | awk '{print $1}')
+	[[ -f $_mail ]]	&& omailcount=$( wc -l $_mail | awk '{print $1}' )
  
   if [[ $mailcount -ge 0 ]]; then
 
@@ -112,18 +130,18 @@ checkmail(){
       echo -e $mailcount > "$mcount"
 
 			# passing cmdline c to force check
-			(( $FORCE )) && msg " ${G}*${N} You have ${W}$( cat $mcount )${N} new mails" && die
+			(( $FORCE )) && info -i "You have ${W}$( cat $mcount )${N} new mails" && exit 0
 
 			# don't show notify or sound if we already readed some mails
 			[[ $iter -gt 1 ]] &&	[[ $mailcount -lt $omailcount ]] && OSD="False" && SOUND="False" 
 
 			if [[ $OSD = "True" ]] && ! (( $FORCE )); then
 						
-				
 				while read -r subject; read -r sender; read -r email; do
 						
 						_strip_html_tags_
 						replace_unwanted_characters "$subject"
+						replace_unwanted_characters "$sender"
 						shrink_subject "$subject"
 						
 						[[ ${OSD_SHOW_SENDER_EMAIL} == "True" ]] && \
@@ -135,7 +153,7 @@ checkmail(){
 
 	    fi	  
     
-			if [[ $SOUND = "true" && -f "$WAV_FILE" ]] && ! (( $FORCE ));then 
+			if [[ $SOUND == "True" && -f "$WAV_FILE" ]] && ! (( $FORCE ));then 
 				 aplay "$WAV_FILE" &> /dev/null
 			fi
 
@@ -166,22 +184,23 @@ write_list_output(){
 
 list_mail(){
 	readcfg
+	
 	lnb=1
-	# mailcount is devided by 2 because we store information for
-	# <title> <name>
-	mailcount=$( expr $(wc -l $mail | awk '{print $1}') / 3 )	
+	mailcount=$( wc -l $mailcount_tmp | awk '{print $1}')	
 
 	if	[[ $mailcount -lt 1 ]] ; then 
-		msg " ${Y}*${N} No new mails!" && die
+		info -y " ${Y}*${N} No new mails!" && exit 0
 	else
-		newmail="true"
-		msg " ${G}*${N} New mails for ${Y}"$MAILBOX"${N}" 
+		# we have new mails
+		newmail=1
+		info -i "New mails for ${Y}"$MAILBOX"${N}"
 	fi
 
 	while read -r subject; read -r sender; read -r email; do
 
 		_strip_html_tags_
-		_replace_unwanted_characters_ "$subject"
+		subject=$(replace_unwanted_characters "$subject")
+		sender=$(replace_unwanted_characters "$sender")
 
 		! [[ -z $sender ]] && \
 			output_align "$sender" && \
@@ -190,12 +209,13 @@ list_mail(){
 
 	done < $mail
 
-  [[ $newmail ]] && msg " ${Y}*${N} Total new mails: ${W}$lnb${N}" 
+	(( $newmail )) &&  info -y "Total new mails: ${W}$(expr $lnb - 1 )${N}" 
 	
 }
 
 cfg="$HOME/.gfetchrc"
 tmpdir="/tmp/gfetch"
+mailcount_tmp="$tmpdir/mailcounter.tmp"
 mcount="$tmpdir/mcount"
 mail="$tmpdir/newmails.txt"
 _mail="$tmpdir/oldmails.txt"
@@ -210,20 +230,22 @@ done
 
 ! [[ -e $tmpdir  ]] && mkdir -p "$tmpdir"
 
-[[ $# -lt 1 ]] && usage && die
+# if there is no argument given show us usage
+[[ $# -lt 1 ]] && usage && exit 0
 
 case $OPTS in
   -D | --daemon  ) is_running $pid && d_err 1;
-								   nohup $0 --config "$cfg" &> /dev/null & exit 1 ;;
+								   nohup $0 --config "$cfg" &> /dev/null & exit 0 ;;
+								   #$0 --config "$cfg" ;;
 	-k | --kill    ) ! is_running $pid && d_err 2 ;
 								   kill_daemon ;;
 	     --config  ) readcfg ;;
    c | check     ) ! is_running $pid && d_err 2;
 									 FORCE=1; checkmail && die;;
 	 l | list      ) ! is_running $pid && d_err 2;
-									 list_mail && die ;;
-	-v | --version ) version && die ;;
-							 * ) msg " ${R}*${N} Unerocgnized command!!" && die ;;
+									 list_mail && exit 0 ;;
+	-v | --version ) version && exit 0 ;;
+							 * ) die " Unerocgnized command!!" ;;
 esac
 
 iter=0
@@ -231,7 +253,7 @@ while true; do
 	
 	 get_pid	
 	 network_carrier_status
-	 [[ $online ]] && checkmail && sleep ${INTERVAL:=300} || iter=0 && sleep 10 
+	 (( $online )) && checkmail && sleep ${INTERVAL:=300} || iter=0 && sleep 10 
 
 iter=$((iter+1))
 done 
