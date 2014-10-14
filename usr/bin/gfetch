@@ -1,14 +1,14 @@
 #! /bin/bash
-# small and easy gmail fetcher script
-
 set -e
 
-version=0.3-git
-maintainer="@ 2013 Marko Rakamaric"
+GF_VERSION=0.3-git
+GF_MAINTAINER="@ 2013 Marko Rakamaric"
+GF_BINARY="gfetch"
+GF_DESCRIPTION="Mail retriver and checker for Gmail"
 
 usage(){
 cat << EOF  
-Usage: gfetch <action>
+Usage: $GF_BINARY <action>
 	 
 ${G}Daemon actions:${N}	
   ${W}-D --daemon${N}      start daemon
@@ -22,10 +22,10 @@ EOF
 
 version(){
 cat << EOF
-     This is  : gfetch
-     Version  : $version
- Description  : Mail retriver and checker for Gmail
-   Copyright  : $maintainer
+     This is  : $GF_BINARY
+     Version  : $GF_VERSION
+ Description  : $GF_DESCRIPTION
+   Copyright  : $GF_MAINTAINER
      License  : GNU General Public License, version 3 or later
 EOF
 }
@@ -154,10 +154,10 @@ checkmail(){
 						
 						[[ ${OSD_SHOW_SENDER_EMAIL} == "True" ]] && \
 						_strip_html_tags_ "email" && \
-							email=("<${email}>") || email=""
+							email=(" <i>${email}</i>") || email=""
 
-						notify-send -t "$OSD_TIMEOUT" "$OSDTEXT [$mailcount]" \
-							"\nFrom: <b>$sender</b> $email\nSubject: $subject"	
+						notify-send -a $GF_BINARY -t "$OSD_TIMEOUT" "$OSDTEXT [$mailcount]" \
+							"\n<b>From:</b> $sender $email\n<b>Subject:</b> $subject"	
 					done < <(sed -n 1,3p $mail )
 
 	    fi	  
