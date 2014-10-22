@@ -119,6 +119,7 @@ checkmail(){
 	wget -q --secure-protocol=TLSv1 --no-check-certificate \
 		--user=$USERNAME --password=$PASSWORD \
 		https://mail.google.com/mail/feed/atom -O - | \
+	sed 's|<contributor>.*</contributor>||g' | \
 	grep -ioE "<name[^>]*>[^<]*</name>|<title[^>]*>[^<]*</title>|<email[^>]*>[^<]*</email>" | sed 1d > $mail
 	
 	# create copy of mail bit with titles only, I use this because of easier calucaltion of mails
