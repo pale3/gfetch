@@ -199,7 +199,7 @@ list_mail(){
 	mailcount=$( wc -l $mailcount_tmp | awk '{print $1}')	
 
 	if	[[ $mailcount -lt 1 ]] ; then 
-		info -y " ${Y}*${N} No new mails!" && exit 0
+		info -y "No new mails!" && exit 0
 	else
 		# we have new mails
 		newmail=1
@@ -264,7 +264,7 @@ case $OPTS in
 	-k | --kill    ) ! is_running $pid && d_err 2 ;
 								   kill_daemon ;;
    c | check     ) ! is_running $pid && d_err 2;
-									 FORCE=1; checkmail && die;;
+									 FORCE=1; checkmail ;;
 	 l | list      ) ! is_running $pid && d_err 2;
 									 list_mail && exit 0 ;;
 	-v | --version ) version && exit 0 ;;
