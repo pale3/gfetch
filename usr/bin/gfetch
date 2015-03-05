@@ -104,10 +104,12 @@ readcfg(){
 }
 
 network_carrier_status(){
-	# we don't wana start gmailfetcher system is not online
-	hwactive=$( route -n | awk '{print $8}' | sed '/^$/d' | grep -v "\Iface\|lo" | uniq )
-	! [[ $hwactive ]] && return
-	[[ $( cat /sys/class/net/$hwactive/carrier ) = 1 ]] && online=1
+
+	local gateway=$(ip route | awk '{print $3}' | head -n 1)
+	local dev=$(ip route | awk '{print $5}' | head -n 1)
+
+	! [[ $gateway ]] && return
+	[[ $( cat /sys/class/net/$dev/carrier ) = 1 ]] && online=1
 
 }
 
