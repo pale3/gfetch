@@ -260,7 +260,7 @@ done
 [[ $# -lt 1 ]] && usage && exit 0
 
 case $OPTS in
-  -D | --daemon  ) is_running "gfetch" && d_err 1;
+	-D | --daemon  ) [[ $(is_running "gfetch") -eq 1 ]] && d_err 1;
 								   #nohup $0 --config "$cfg" &> /dev/null & exit 0 ;;
 								 	 readcfg;
 								   _daemon  &> /dev/null & ;;
